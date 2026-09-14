@@ -317,7 +317,7 @@ def process_gmail_code(message):
 
         text = (
             f"تم يا حبيبي، الحساب رقم {acc_num} انضاف وحفظته لك بنجاح\n"
-            "ارتاح يا قلبي كل شيء تمام وأنا معك"
+    
         )
 
         bot.reply_to(
@@ -611,7 +611,7 @@ def process_attachment_choice(
 
     msg = bot.reply_to(
         message,
-        "اكتب فقط: نعم أو لا"
+        "يغبي اكتب فقط: نعم أو لا"
     )
 
     bot.register_next_step_handler(
@@ -641,7 +641,7 @@ def process_attachment_photo(
             msg = bot.reply_to(
                 message,
                 "أرسل صورة يا حبيبي، وليس نصاً.\n\n"
-                "أرسل الصورة الآن"
+            
             )
 
             bot.register_next_step_handler(
@@ -768,13 +768,13 @@ def process_count(
         if image_bytes is not None:
 
             text_sending += (
-                "\n\nتبي ارسلك صوره مع الرساله؟"
+                "\n\nاحبك"
             )
 
         else:
 
             text_sending += (
-                "\n\nاو بدون صور ي امير؟"
+                "\n\n"
             )
 
         bot.reply_to(

@@ -40,7 +40,7 @@ ACCOUNTS_FILE = "gmail_accounts.json"
 # Telegram Bot
 # =========================================================
 
-TOKEN = "PUT_YOUR_NEW_TELEGRAM_BOT_TOKEN_HERE"
+TOKEN = "8890546895:AAHHk0MqGpbSsyMGp82WE1tL_s6m8ExFdwc"
 
 bot = telebot.TeleBot(TOKEN)
 

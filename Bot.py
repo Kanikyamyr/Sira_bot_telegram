@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import time
 from urllib.parse import urlparse, parse_qs
 from email.mime.text import MIMEText
 from google.oauth2.credentials import Credentials
@@ -21,13 +22,13 @@ CLIENT_CONFIG = {
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 ACCOUNTS_FILE = 'gmail_accounts.json'
 
-# التوكن الجديد للبوت الخاص بك يا أمير
 TOKEN = "8890546895:AAHHk0MqGpbSsyMGp82WE1tL_s6m8ExFdwc"
 bot = telebot.TeleBot(TOKEN)
 
 bot.set_my_commands([
     BotCommand("start", "الرئيسية"),
     BotCommand("add_gmail", "إضافة جيميل"),
+    BotCommand("check_accounts", "فحص الحسابات"),
     BotCommand("send", "إرسال رسائل")
 ])
 
@@ -142,6 +143,32 @@ def process_gmail_code(message):
         )
         bot.reply_to(message, text)
 
+@bot.message_handler(commands=['check_accounts'])
+def check_accounts_command(message):
+    accounts = load_accounts()
+    if not accounts:
+        bot.reply_to(message, "يا أمير ما فيه أي حسابات مسجلة عندي حالياً. أضف حسابات بالأمر /add_gmail")
+        return
+    
+    bot.reply_to(message, f"جاري فحص {len(accounts)} حسابات مسجلة يا أمير، ثواني بس...")
+    
+    report = []
+    working_count = 0
+    
+    for index, acc in enumerate(accounts, 1):
+        try:
+            service = get_gmail_service(acc)
+            # استعلام خفيف لجلب البريد والتأكد من عمل الحساب
+            profile = service.users().getProfile(userId='me').execute()
+            email_address = profile.get('emailAddress', 'غير معروف')
+            working_count += 1
+            report.append(f"✅ الحساب {index}: {email_address} (شغال)")
+        except Exception as e:
+            report.append(f"❌ الحساب {index}: معطل أو صلاحياته منتهية")
+            
+    result_text = f"تقرير فحص الحسابات ({working_count}/{len(accounts)} شغالة):\n\n" + "\n".join(report)
+    bot.reply_to(message, result_text)
+
 @bot.message_handler(commands=['send'])
 def start_send_process(message):
     accounts = load_accounts()
@@ -189,6 +216,9 @@ def process_count(message, recipient, subject, body):
             current_subject = f"{subject} {i+1}"
             if send_email(service, recipient, current_subject, body):
                 success_count += 1
+            
+            # مهلة ثانيتين بين كل رسالة والثانية لحماية الحسابات
+            time.sleep(2)
                 
         text_success = (
             f"تم يا حبيبي أرسلت لك {success_count} من أصل {count} رسالة بنجاح ووزعتها على حساباتك بكل عناية\n"

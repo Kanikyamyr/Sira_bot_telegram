@@ -21,8 +21,8 @@ from telebot.types import BotCommand
 
 CLIENT_CONFIG = {
     "installed": {
-        "client_id": "PUT_YOUR_NEW_CLIENT_ID_HERE",
-        "client_secret": "PUT_YOUR_NEW_CLIENT_SECRET_HERE",
+        "client_id": "P489402050151-pveriror0urrulgs1tplj5gfgptoldg5.apps.googleusercontent.com",
+        "client_secret": "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",
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
     }

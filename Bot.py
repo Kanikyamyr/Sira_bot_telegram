@@ -12,7 +12,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 import telebot
-from telebot.types import BotCommand
+from telebot.types import BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
 
 
 # =========================================================
@@ -40,9 +40,27 @@ ACCOUNTS_FILE = "gmail_accounts.json"
 # Telegram Bot
 # =========================================================
 
-TOKEN = "8890546895:AAHHk0MqGpbSsyMGp82WE1tL_s6m8ExFdwc"
+TOKEN = "8859368953:AAENxBV3_gwVikQFxp_wTwQg8qtn8liTNvA"
 
 bot = telebot.TeleBot(TOKEN)
+
+
+# =========================================================
+# صاحب البوت فقط
+# =========================================================
+
+AUTHORIZED_USER_ID = 6806665096
+
+
+@bot.message_handler(
+    func=lambda message: message.from_user.id != AUTHORIZED_USER_ID
+)
+def block_unauthorized_users(message):
+
+    bot.reply_to(
+        message,
+        "آسفة حبيبي، هذا البوت لأمير فقط 🤍"
+    )
 
 
 bot.set_my_commands([
@@ -65,19 +83,62 @@ temp_flows = {}
 # =========================================================
 
 def load_accounts():
+
     if os.path.exists(ACCOUNTS_FILE):
+
         try:
-            with open(ACCOUNTS_FILE, "r") as f:
+
+            with open(
+                ACCOUNTS_FILE,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
                 return json.load(f)
+
         except Exception:
+
             return []
 
     return []
 
 
 def save_accounts(accounts):
-    with open(ACCOUNTS_FILE, "w") as f:
-        json.dump(accounts, f, indent=4)
+
+    with open(
+        ACCOUNTS_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            accounts,
+            f,
+            indent=4,
+            ensure_ascii=False
+        )
+
+
+# =========================================================
+# Gmail Profile
+# =========================================================
+
+def get_gmail_email(creds):
+
+    service = build(
+        "gmail",
+        "v1",
+        credentials=creds
+    )
+
+    profile = service.users().getProfile(
+        userId="me"
+    ).execute()
+
+    return profile.get(
+        "emailAddress",
+        ""
+    )
 
 
 # =========================================================
@@ -85,14 +146,19 @@ def save_accounts(accounts):
 # =========================================================
 
 def get_gmail_service(creds_info):
+
     creds = Credentials.from_authorized_user_info(
         creds_info,
         SCOPES
     )
 
     if creds and creds.expired and creds.refresh_token:
+
         from google.auth.transport.requests import Request
-        creds.refresh(Request())
+
+        creds.refresh(
+            Request()
+        )
 
     return build(
         "gmail",
@@ -113,6 +179,7 @@ def send_email(
     image_bytes=None,
     image_filename="image.jpg"
 ):
+
     try:
 
         # بدون صورة
@@ -148,10 +215,15 @@ def send_email(
                 filename=image_filename
             )
 
-            message.attach(image)
+            message.attach(
+                image
+            )
 
         message["to"] = to
-        message["subject"] = subject
+
+        # العنوان اختياري
+        if subject:
+            message["subject"] = subject
 
         raw_message = base64.urlsafe_b64encode(
             message.as_bytes()
@@ -168,7 +240,9 @@ def send_email(
 
     except Exception as e:
 
-        print(f"خطأ في الإرسال: {e}")
+        print(
+            f"خطأ في الإرسال: {e}"
+        )
 
         return False
 
@@ -181,6 +255,7 @@ def send_email(
 def send_welcome(message):
 
     accounts = load_accounts()
+
     count = len(accounts)
 
     text = (
@@ -249,6 +324,7 @@ def start_add_gmail(message):
 def process_gmail_code(message):
 
     user_input = message.text.strip()
+
     chat_id = message.chat.id
 
     if chat_id not in temp_flows:
@@ -299,12 +375,25 @@ def process_gmail_code(message):
 
         creds = flow.credentials
 
+        # معرفة البريد الحقيقي للحساب
+        email = get_gmail_email(
+            creds
+        )
+
         accounts = load_accounts()
 
+        account_data = json.loads(
+            creds.to_json()
+        )
+
+        # حفظ البريد مع بيانات الحساب
+        account_data["email"] = email
+
+        # اسم الحساب الافتراضي
+        account_data["name"] = email
+
         accounts.append(
-            json.loads(
-                creds.to_json()
-            )
+            account_data
         )
 
         save_accounts(
@@ -316,8 +405,8 @@ def process_gmail_code(message):
         del temp_flows[chat_id]
 
         text = (
-            f"تم يا حبيبي، الحساب رقم {acc_num} انضاف وحفظته لك بنجاح\n"
-    
+            f"تم يا حبيبي، الحساب رقم {acc_num} انضاف وحفظته لك بنجاح\n\n"
+            f"📧 الحساب: {email}"
         )
 
         bot.reply_to(
@@ -325,7 +414,11 @@ def process_gmail_code(message):
             text
         )
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            f"OAuth ERROR: {repr(e)}"
+        )
 
         text = (
             "يا حبيبي صار خطأ بسيط أثناء التحقق ولا تشيل هم\n\n"
@@ -362,9 +455,25 @@ def check_accounts_command(message):
     )
 
     report = []
+
     working_count = 0
+    failed_count = 0
+
+    changed = False
+
+    keyboard = InlineKeyboardMarkup()
 
     for index, acc in enumerate(accounts, 1):
+
+        email = acc.get(
+            "email",
+            ""
+        )
+
+        name = acc.get(
+            "name",
+            ""
+        )
 
         try:
 
@@ -375,11 +484,9 @@ def check_accounts_command(message):
 
             if not creds:
 
-                report.append(
-                    f"❌ الحساب {index}: بيانات التوثيق غير موجودة"
+                raise Exception(
+                    "بيانات التوثيق غير موجودة"
                 )
-
-                continue
 
             if creds.expired:
 
@@ -393,58 +500,190 @@ def check_accounts_command(message):
 
                 else:
 
-                    report.append(
-                        f"❌ الحساب {index}: يحتاج إعادة تسجيل الدخول"
+                    raise Exception(
+                        "يحتاج إعادة تسجيل الدخول"
                     )
 
-                    continue
+            if not creds.valid:
 
-            if creds.valid:
-
-                working_count += 1
-
-                report.append(
-                    f"✅ الحساب {index}: التوثيق شغال"
+                raise Exception(
+                    "التوثيق غير صالح"
                 )
 
-            else:
+            # إذا الحساب قديم وما عنده إيميل
+            if not email:
 
-                report.append(
-                    f"❌ الحساب {index}: التوثيق غير صالح"
-                )
+                try:
+
+                    email = get_gmail_email(
+                        creds
+                    )
+
+                    acc["email"] = email
+                    changed = True
+
+                except Exception:
+
+                    email = "البريد غير معروف"
+
+            if not name:
+
+                name = email
+                acc["name"] = name
+                changed = True
+
+            working_count += 1
+
+            report.append(
+                f"🟢 الحساب {index}\n"
+                f"👤 الاسم: {name}\n"
+                f"📧 Gmail: {email}\n"
+                f"✅ الحالة: فعال\n"
+            )
 
         except Exception as e:
+
+            failed_count += 1
 
             error = str(e).lower()
 
             if "invalid_grant" in error:
 
-                report.append(
-                    f"❌ الحساب {index}: يحتاج إعادة تسجيل الدخول"
-                )
+                status = "يحتاج إعادة تسجيل الدخول"
 
             elif "refresh" in error:
 
-                report.append(
-                    f"❌ الحساب {index}: مشكلة في تحديث التوثيق"
-                )
+                status = "مشكلة في تحديث التوثيق"
 
             else:
 
-                report.append(
-                    f"❌ الحساب {index}: مشكلة في التوثيق"
-                )
+                status = "التوثيق غير صالح"
+
+            if not email:
+                email = "البريد غير معروف"
+
+            if not name:
+                name = email
+
+            report.append(
+                f"🔴 الحساب {index}\n"
+                f"👤 الاسم: {name}\n"
+                f"📧 Gmail: {email}\n"
+                f"❌ الحالة: {status}\n"
+            )
+
+        # زر حذف الحساب
+        keyboard.add(
+            InlineKeyboardButton(
+                f"🗑 حذف الحساب {index}",
+                callback_data=f"delete_account:{index - 1}"
+            )
+        )
+
+    if changed:
+
+        save_accounts(
+            accounts
+        )
 
     result_text = (
         f"تقرير فحص الحسابات "
         f"({working_count}/{len(accounts)} شغالة):\n\n"
         + "\n".join(report)
+        + "\n"
+        + "يا أمير إذا لقيت حساب فيه مشكلة وتبي تشيله، "
+        "اضغط زر الحذف الخاص فيه تحت 🤍\n\n"
+        "وبعدها تقدر تضيفه من جديد بالأمر /add_gmail."
     )
 
-    bot.reply_to(
-        message,
-        result_text
+    bot.send_message(
+        message.chat.id,
+        result_text,
+        reply_markup=keyboard
     )
+
+
+# =========================================================
+# حذف الحساب
+# =========================================================
+
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("delete_account:")
+)
+def delete_account_callback(call):
+
+    if call.from_user.id != AUTHORIZED_USER_ID:
+
+        bot.answer_callback_query(
+            call.id,
+            "هذا البوت لأمير فقط 🤍",
+            show_alert=True
+        )
+
+        return
+
+    try:
+
+        index = int(
+            call.data.split(":")[1]
+        )
+
+        accounts = load_accounts()
+
+        if index < 0 or index >= len(accounts):
+
+            bot.answer_callback_query(
+                call.id,
+                "الحساب غير موجود.",
+                show_alert=True
+            )
+
+            return
+
+        account = accounts[index]
+
+        email = account.get(
+            "email",
+            "البريد غير معروف"
+        )
+
+        name = account.get(
+            "name",
+            email
+        )
+
+        accounts.pop(
+            index
+        )
+
+        save_accounts(
+            accounts
+        )
+
+        bot.answer_callback_query(
+            call.id,
+            "تم حذف الحساب 🤍"
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            "تم يا أمير حبيبي، حذفت لك الحساب 🤍\n\n"
+            f"👤 الاسم: {name}\n"
+            f"📧 Gmail: {email}\n\n"
+            "وإذا تبيه من جديد، أضفه بالأمر /add_gmail."
+        )
+
+    except Exception as e:
+
+        print(
+            f"Delete ERROR: {repr(e)}"
+        )
+
+        bot.answer_callback_query(
+            call.id,
+            "صار خطأ أثناء حذف الحساب.",
+            show_alert=True
+        )
 
 
 # =========================================================
@@ -494,7 +733,9 @@ def process_recipient(message):
 
     msg = bot.reply_to(
         message,
-        "وش تحب يكون موضوع الرسالة يحبيبي؟"
+        "وش تحب يكون موضوع الرسالة يحبيبي؟\n\n"
+        "إذا ما تبي عنوان، ارسل لي «لا» أو «ما أبي عنوان» "
+        "وأخليها بدون عنوان."
     )
 
     bot.register_next_step_handler(
@@ -508,13 +749,37 @@ def process_recipient(message):
 # Subject
 # =========================================================
 
-def process_subject(message, recipient):
+def process_subject(
+    message,
+    recipient
+):
 
     subject = message.text.strip()
 
+    no_subject_words = [
+        "لا",
+        "ل",
+        "no",
+        "n",
+        "بدون عنوان",
+        "ما أبي عنوان",
+        "ما ابي عنوان",
+        "لا أبي عنوان",
+        "لا ابي عنوان",
+        "بدون",
+        "فارغ",
+        "فاضي"
+    ]
+
+    if subject.lower() in no_subject_words:
+
+        subject = ""
+
     msg = bot.reply_to(
         message,
-        "اكتب الرسالة يا حبيبي وأنا أرسلها لك"
+        "اكتب الرسالة يا حبيبي وأنا أرسلها لك\n\n"
+        "وإذا ما تبي رسالة، ارسل لي «لا» أو «ما أبي رسالة» "
+        "وأخلي الإيميل بدون رسالة."
     )
 
     bot.register_next_step_handler(
@@ -536,6 +801,25 @@ def process_message_body(
 ):
 
     body = message.text
+
+    no_message_words = [
+        "لا",
+        "ل",
+        "no",
+        "n",
+        "بدون رسالة",
+        "ما أبي رسالة",
+        "ما ابي رسالة",
+        "لا أبي رسالة",
+        "لا ابي رسالة",
+        "بدون",
+        "فارغ",
+        "فاضي"
+    ]
+
+    if body.strip().lower() in no_message_words:
+
+        body = ""
 
     msg = bot.reply_to(
         message,
@@ -640,8 +924,7 @@ def process_attachment_photo(
 
             msg = bot.reply_to(
                 message,
-                "أرسل صورة يا حبيبي، وليس نصاً.\n\n"
-            
+                "أرسل صورة يا حبيبي، وليس نصاً."
             )
 
             bot.register_next_step_handler(
@@ -796,9 +1079,9 @@ def process_count(
                     accounts[acc_index]
                 )
 
-                current_subject = (
-                    f"{subject} {i + 1}"
-                )
+                # العنوان يبقى كما أدخله أمير
+                # وإذا اختار بدون عنوان سيكون فارغاً
+                current_subject = subject
 
                 if send_email(
                     service,
